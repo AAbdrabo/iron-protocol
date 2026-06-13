@@ -1725,9 +1725,21 @@ function saveWellness() {
 }
 
 function getWellnessLog() {
-  const dates = (lsJSON('ip_well_dates') || []).slice().sort().reverse();
-  return dates.map(date => ({ date, data: lsJSON('ip_well_' + date) || {} }))
-    .filter(e => e.data.am || e.data.pm || e.data.move || (e.data.water > 0));
+  // Scan all localStorage keys for wellness entries (handles both old and new data)
+  const entries = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('ip_well_') && key !== 'ip_well_dates') {
+      const date = key.replace('ip_well_', '');
+      if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const data = lsJSON(key) || {};
+        if (data.am || data.pm || data.move || (data.water > 0)) {
+          entries.push({ date, data });
+        }
+      }
+    }
+  }
+  return entries.sort((a,b) => b.date.localeCompare(a.date));
 }
 
 function adjustWater(delta) {
