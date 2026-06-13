@@ -1279,6 +1279,15 @@
     </div>
     <div id="edit-cards"></div>
     <button class="edit-reset-btn" onclick="resetPools()">CLEAR ALL ALTERNATIVES</button>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="section-eyebrow">DATA BACKUP</div>
+      <div class="section-title">Export My Data</div>
+      <p style="font-size:11px;color:var(--text2);margin:8px 0 12px;">
+        Download a personal backup of your workout history and exercise pools as a file you can keep.
+      </p>
+      <button class="edit-reset-btn" style="border-color:var(--border2);color:var(--text2);" onclick="exportData()">DOWNLOAD MY DATA (JSON)</button>
+    </div>
   </section>
 
 </main>
@@ -1706,6 +1715,19 @@ function saveWellness() {
   d.move = document.getElementById('cb-move').checked;
   d.water = parseFloat(document.getElementById('hyd-big').textContent) || 0;
   ls(wellnessKey(), JSON.stringify(d));
+
+  const today = new Date().toISOString().slice(0,10);
+  const dates = lsJSON('ip_well_dates') || [];
+  if (!dates.includes(today)) {
+    dates.push(today);
+    ls('ip_well_dates', JSON.stringify(dates));
+  }
+}
+
+function getWellnessLog() {
+  const dates = (lsJSON('ip_well_dates') || []).slice().sort().reverse();
+  return dates.map(date => ({ date, data: lsJSON('ip_well_' + date) || {} }))
+    .filter(e => e.data.am || e.data.pm || e.data.move || (e.data.water > 0));
 }
 
 function adjustWater(delta) {
@@ -1760,15 +1782,18 @@ function renderHistory() {
   const cont = document.getElementById('history-list');
   const hist = getHistory();
 
-  if (!hist.length) {
+  if (!hist.length && !getWellnessLog().length) {
     cont.innerHTML = `<div class="hist-empty">NO SESSIONS LOGGED YET<br>COMPLETE YOUR FIRST WAR SET.</div>`;
     return;
   }
 
-  let html = `<div class="card" style="margin-bottom:14px;">
-    <div class="section-eyebrow">WAR SET LOG</div>
-    <div class="section-title">${hist.length} Session${hist.length!==1?'s':''} Recorded</div>
-  </div>`;
+  let html = '';
+  if (hist.length) {
+    html += `<div class="card" style="margin-bottom:14px;">
+      <div class="section-eyebrow">WAR SET LOG</div>
+      <div class="section-title">${hist.length} Session${hist.length!==1?'s':''} Recorded</div>
+    </div>`;
+  }
 
   hist.forEach(s => {
     html += `<div class="hist-session">
@@ -1799,7 +1824,36 @@ function renderHistory() {
     html += `</div>`;
   });
 
-  html += `<button class="clear-btn" onclick="clearHistory()">CLEAR ALL HISTORY</button>`;
+  if (hist.length) {
+    html += `<button class="clear-btn" onclick="clearHistory()">CLEAR ALL HISTORY</button>`;
+  }
+
+  const wellLog = getWellnessLog();
+  if (wellLog.length) {
+    html += `<div class="card" style="margin-top:14px;margin-bottom:14px;">
+      <div class="section-eyebrow">LUNG LOG</div>
+      <div class="section-title">${wellLog.length} Day${wellLog.length!==1?'s':''} Tracked</div>
+    </div>`;
+    wellLog.forEach(e => {
+      const tags = [];
+      if (e.data.am)   tags.push('AM DETOX');
+      if (e.data.pm)   tags.push('PM FLUSH');
+      if (e.data.move) tags.push('ZONE 2');
+      html += `<div class="hist-session">
+        <div class="hist-session-top">
+          <div class="hist-date">${e.date}</div>
+          <div class="hist-day-tag">${(e.data.water||0).toFixed(1)}L WATER</div>
+        </div>
+        <div class="hist-ex">
+          <div>
+            <div class="hist-ex-name">${tags.length ? tags.join(' · ') : 'No routine items checked'}</div>
+            <div class="hist-ex-sub">STEALTH LUNG PROTOCOL</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+
   cont.innerHTML = html;
 }
 
@@ -1965,6 +2019,27 @@ function resetPools() {
 
 // Keep applyCustomNames as a no-op stub — pools replaced the old system
 function applyCustomNames() {}
+
+// ================================================================
+//  DATA EXPORT
+// ================================================================
+
+function exportData() {
+  const payload = {
+    exported_at: new Date().toISOString(),
+    history: getHistory(),
+    pools: getPools(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'iron-protocol-export-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  toast('DATA EXPORTED');
+}
 
 // ================================================================
 //  UTILS
