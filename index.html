@@ -222,7 +222,7 @@
       padding: 16px;
       max-width: 760px;
       margin: 0 auto;
-      padding-bottom: 80px;
+      padding-bottom: 100px;
       position: relative;
       z-index: 1;
     }
@@ -515,9 +515,22 @@
     }
 
     /* ── SAVE BTN ───────────────────────────────────────────── */
+    /* ── PERSISTENT SAVE BAR ────────────────────────────────── */
+    .save-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 300;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      background: linear-gradient(to top, rgba(6,6,6,0.98) 70%, transparent);
+      display: flex;
+      gap: 10px;
+    }
+
     .save-btn {
-      width: 100%;
-      padding: 17px;
+      flex: 1;
+      padding: 16px;
       background: var(--red);
       border: none;
       border-radius: 12px;
@@ -528,11 +541,9 @@
       text-transform: uppercase;
       cursor: pointer;
       transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
-      margin-top: 6px;
-      box-shadow: 0 4px 20px rgba(230,48,48,0.25);
+      box-shadow: 0 4px 20px rgba(255,46,46,0.3);
     }
-
-    .save-btn:hover  { background: #f04040; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(230,48,48,0.35); }
+    .save-btn:hover  { background: #f04040; transform: translateY(-1px); box-shadow: 0 6px 28px rgba(255,46,46,0.4); }
     .save-btn:active { transform: translateY(0); }
 
     /* ── WELLNESS ───────────────────────────────────────────── */
@@ -1120,7 +1131,6 @@
   <section id="tab-workout" class="section active">
     <div class="day-selector" id="day-selector"></div>
     <div id="workout-exercises"></div>
-    <button class="save-btn" onclick="commitSession()">▸ MARK SESSION COMPLETE</button>
   </section>
 
   <!-- ── WELLNESS ───────────────────────────────────────────── -->
@@ -1291,6 +1301,11 @@
   </section>
 
 </main>
+
+<!-- ── PERSISTENT SAVE BAR ──────────────────────────────── -->
+<div class="save-bar">
+  <button class="save-btn" onclick="saveEverything()">▸ SAVE SESSION</button>
+</div>
 
 <!-- ── LOGIN GATE (blocks app until signed in) ───────────────── -->
 <div id="auth-gate" class="auth-gate">
@@ -1651,42 +1666,92 @@ function alarmBeep() {
 }
 
 // ================================================================
-//  COMMIT SESSION → HISTORY
+//  SESSION SAVE (unified — commits workout + wellness together)
 // ================================================================
 
-function commitSession() {
-  const day = DAYS[currentDay];
-  const ws  = getWS();
+const MONTH_MAP = { Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+                    Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12' };
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  const entry = {
+/** Converts any date string → YYYY-MM-DD. Already ISO? Pass through. */
+function toISO(date) {
+  if (!date) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date; // already ISO
+  const m = date.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+  if (m) return `${m[3]}-${MONTH_MAP[m[2]]||'01'}-${m[1].padStart(2,'0')}`;
+  return date; // unknown format, return as-is
+}
+
+/** Converts YYYY-MM-DD → "13 Jun 2026" */
+function toDisplay(iso) {
+  const parts = (iso||'').split('-');
+  if (parts.length !== 3) return iso;
+  return `${parseInt(parts[2])} ${MONTH_NAMES[parseInt(parts[1])-1]} ${parts[0]}`;
+}
+
+/** Today's date as YYYY-MM-DD */
+function todayISO() { return new Date().toISOString().slice(0,10); }
+
+/** Returns true if any set field has meaningful data */
+function exerciseHasData(s) {
+  return [s.s1w, s.s1r, s.s2w, s.s2r, s.ww, s.wr].some(v => v && String(v).trim() !== '');
+}
+
+/** Builds a history entry from current FORGE state, or null if empty */
+function buildSessionEntry() {
+  const day     = DAYS[currentDay];
+  const ws      = getWS();
+  const hasData = day.exercises.some(ex => exerciseHasData(ws[ex.id] || {}));
+  if (!hasData) return null;
+  return {
     id:    Date.now(),
-    date:  new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }),
+    date:  todayISO(),
     num:   day.num,
     focus: day.focus,
     exs:   day.exercises.map(ex => {
-      const s    = ws[ex.id] || {};
-      const name = selectedName(day.id, currentDay, ex.id);
-      return { name, ww: s.ww || '—', wr: s.wr || '—', hf: !!s.hf };
+      const s = ws[ex.id] || {};
+      return { name: selectedName(day.id, currentDay, ex.id), ww: s.ww||'—', wr: s.wr||'—', hf: !!s.hf };
     })
   };
+}
 
+/** Writes a session entry to history and clears FORGE state */
+function persistSession(entry) {
   const hist = getHistory();
   hist.unshift(entry);
   ls('ip_history', JSON.stringify(hist));
-
-  // Clear active workout state and session exercise selection
   localStorage.removeItem('ip_ws_'  + currentDay);
   localStorage.removeItem('ip_sel_' + currentDay);
   renderExercises(currentDay);
   renderHistory();
+}
+
+/** Legacy: called directly in some places — delegates to saveEverything */
+function commitSession() {
+  const entry = buildSessionEntry();
+  if (!entry) { toast('ENTER SOME DATA FIRST'); return; }
+  persistSession(entry);
   toast('SESSION LOGGED');
+}
+
+/** Master save: commits workout (if data exists) + saves wellness */
+function saveEverything() {
+  const entry = buildSessionEntry();
+  saveWellness(); // always save wellness
+  if (entry) {
+    persistSession(entry);
+    toast('SESSION + LUNGS SAVED');
+  } else {
+    renderHistory();
+    toast('LUNGS SAVED');
+  }
 }
 
 // ================================================================
 //  WELLNESS
 // ================================================================
 
-function wellnessKey() { return 'ip_well_' + new Date().toISOString().slice(0,10); }
+function wellnessKey() { return 'ip_well_' + todayISO(); }
 
 function loadWellness() {
   const d = lsJSON(wellnessKey()) || {};
@@ -1709,35 +1774,24 @@ function toggleRow(row, cbId) {
 }
 
 function saveWellness() {
-  const d = lsJSON(wellnessKey()) || {};
-  d.am   = document.getElementById('cb-am').checked;
-  d.pm   = document.getElementById('cb-pm').checked;
-  d.move = document.getElementById('cb-move').checked;
-  d.water = parseFloat(document.getElementById('hyd-big').textContent) || 0;
-  ls(wellnessKey(), JSON.stringify(d));
-
-  const today = new Date().toISOString().slice(0,10);
-  const dates = lsJSON('ip_well_dates') || [];
-  if (!dates.includes(today)) {
-    dates.push(today);
-    ls('ip_well_dates', JSON.stringify(dates));
-  }
+  ls(wellnessKey(), JSON.stringify({
+    am:    document.getElementById('cb-am').checked,
+    pm:    document.getElementById('cb-pm').checked,
+    move:  document.getElementById('cb-move').checked,
+    water: parseFloat(document.getElementById('hyd-big').textContent) || 0
+  }));
 }
 
+/** Returns all days with wellness data, sorted newest-first */
 function getWellnessLog() {
-  // Scan all localStorage keys for wellness entries (handles both old and new data)
   const entries = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && key.startsWith('ip_well_') && key !== 'ip_well_dates') {
-      const date = key.replace('ip_well_', '');
-      if (date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-        const data = lsJSON(key) || {};
-        if (data.am || data.pm || data.move || (data.water > 0)) {
-          entries.push({ date, data });
-        }
-      }
-    }
+    if (!key || !key.startsWith('ip_well_') || key === 'ip_well_dates') continue;
+    const date = key.replace('ip_well_', '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const data = lsJSON(key) || {};
+    if (data.am || data.pm || data.move || data.water > 0) entries.push({ date, data });
   }
   return entries.sort((a,b) => b.date.localeCompare(a.date));
 }
@@ -1751,9 +1805,9 @@ function adjustWater(delta) {
 
 function setWaterUI(val) {
   const pct = Math.min(100, (val / 5) * 100);
-  document.getElementById('hyd-big').textContent    = val.toFixed(1);
-  document.getElementById('water-bar').style.width  = pct + '%';
-  document.getElementById('water-pct').textContent  = Math.round(pct) + '% of 5L  ·  ' + val.toFixed(1) + 'L drunk';
+  document.getElementById('hyd-big').textContent   = val.toFixed(1);
+  document.getElementById('water-bar').style.width = pct + '%';
+  document.getElementById('water-pct').textContent = Math.round(pct) + '% of 5L  ·  ' + val.toFixed(1) + 'L drunk';
 }
 
 function setCheck(cbId, checked, rowId) {
@@ -1790,82 +1844,90 @@ function syncWeekCard(cb, cardId) {
 
 function getHistory() { return lsJSON('ip_history') || []; }
 
+/** Renders a unified daily log — workout + wellness merged by ISO date */
 function renderHistory() {
-  const cont = document.getElementById('history-list');
-  const hist = getHistory();
+  const cont    = document.getElementById('history-list');
+  const hist    = getHistory();
+  const wellLog = getWellnessLog();
 
-  if (!hist.length && !getWellnessLog().length) {
+  if (!hist.length && !wellLog.length) {
     cont.innerHTML = `<div class="hist-empty">NO SESSIONS LOGGED YET<br>COMPLETE YOUR FIRST WAR SET.</div>`;
     return;
   }
 
-  let html = '';
-  if (hist.length) {
-    html += `<div class="card" style="margin-bottom:14px;">
-      <div class="section-eyebrow">WAR SET LOG</div>
-      <div class="section-title">${hist.length} Session${hist.length!==1?'s':''} Recorded</div>
-    </div>`;
-  }
+  // Build day map — normalize ALL dates to ISO on the fly
+  const dayMap = {};
 
   hist.forEach(s => {
+    const iso = toISO(s.date); // handles both "13 Jun 2026" and "2026-06-13"
+    if (!dayMap[iso]) dayMap[iso] = { sessions: [], wellness: null };
+    dayMap[iso].sessions.push(s);
+  });
+
+  wellLog.forEach(e => {
+    const iso = e.date; // already ISO from getWellnessLog
+    if (!dayMap[iso]) dayMap[iso] = { sessions: [], wellness: null };
+    dayMap[iso].wellness = e.data;
+  });
+
+  const sortedDates = Object.keys(dayMap).sort((a,b) => b.localeCompare(a));
+
+  let html = `<div class="card" style="margin-bottom:14px;">
+    <div class="section-eyebrow">FULL LOG</div>
+    <div class="section-title">${sortedDates.length} Day${sortedDates.length!==1?'s':''} Recorded</div>
+  </div>`;
+
+  sortedDates.forEach(iso => {
+    const day  = dayMap[iso];
+    const disp = toDisplay(iso);
+
     html += `<div class="hist-session">
       <div class="hist-session-top">
-        <div class="hist-date">${s.date}</div>
-        <div class="hist-day-tag">${s.num} — ${s.focus}</div>
+        <div class="hist-date">${disp}</div>
+        ${day.sessions.length ? `<div class="hist-day-tag">${day.sessions[0].num} — ${day.sessions[0].focus}</div>` : ''}
       </div>`;
-    s.exs.forEach(ex => {
-      html += `<div class="hist-ex">
-        <div>
-          <div class="hist-ex-name">${ex.name}</div>
-          <div class="hist-ex-sub">THE WAR SET</div>
-        </div>
-        <div class="hist-stats">
-          <div class="hist-stat-block">
-            <div class="hist-stat-val">${ex.ww}<span class="hist-stat-unit"> kg</span></div>
-            <div class="hist-stat-lbl">WEIGHT</div>
+
+    day.sessions.forEach(s => {
+      s.exs.forEach(ex => {
+        html += `<div class="hist-ex">
+          <div>
+            <div class="hist-ex-name">${ex.name}</div>
+            <div class="hist-ex-sub">THE WAR SET</div>
           </div>
-          <div class="hist-div"></div>
-          <div class="hist-stat-block">
-            <div class="hist-stat-val">${ex.wr}<span class="hist-stat-unit"> reps</span></div>
-            <div class="hist-stat-lbl">REPS</div>
+          <div class="hist-stats">
+            <div class="hist-stat-block">
+              <div class="hist-stat-val">${ex.ww}<span class="hist-stat-unit"> kg</span></div>
+              <div class="hist-stat-lbl">WEIGHT</div>
+            </div>
+            <div class="hist-div"></div>
+            <div class="hist-stat-block">
+              <div class="hist-stat-val">${ex.wr}<span class="hist-stat-unit"> reps</span></div>
+              <div class="hist-stat-lbl">REPS</div>
+            </div>
+            ${ex.hf ? '<span class="fail-badge">FAILURE</span>' : ''}
           </div>
-          ${ex.hf ? '<span class="fail-badge">FAILURE</span>' : ''}
-        </div>
-      </div>`;
+        </div>`;
+      });
     });
+
+    if (day.wellness) {
+      const w = day.wellness;
+      const tags = [];
+      if (w.am)   tags.push('AM DETOX');
+      if (w.pm)   tags.push('PM FLUSH');
+      if (w.move) tags.push('ZONE 2');
+      html += `<div class="hist-ex" style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+        <div>
+          <div class="hist-ex-name" style="color:var(--blue);">${tags.length ? tags.join(' · ') : '—'}</div>
+          <div class="hist-ex-sub">STEALTH LUNG PROTOCOL · ${(w.water||0).toFixed(1)}L WATER</div>
+        </div>
+      </div>`;
+    }
+
     html += `</div>`;
   });
 
-  if (hist.length) {
-    html += `<button class="clear-btn" onclick="clearHistory()">CLEAR ALL HISTORY</button>`;
-  }
-
-  const wellLog = getWellnessLog();
-  if (wellLog.length) {
-    html += `<div class="card" style="margin-top:14px;margin-bottom:14px;">
-      <div class="section-eyebrow">LUNG LOG</div>
-      <div class="section-title">${wellLog.length} Day${wellLog.length!==1?'s':''} Tracked</div>
-    </div>`;
-    wellLog.forEach(e => {
-      const tags = [];
-      if (e.data.am)   tags.push('AM DETOX');
-      if (e.data.pm)   tags.push('PM FLUSH');
-      if (e.data.move) tags.push('ZONE 2');
-      html += `<div class="hist-session">
-        <div class="hist-session-top">
-          <div class="hist-date">${e.date}</div>
-          <div class="hist-day-tag">${(e.data.water||0).toFixed(1)}L WATER</div>
-        </div>
-        <div class="hist-ex">
-          <div>
-            <div class="hist-ex-name">${tags.length ? tags.join(' · ') : 'No routine items checked'}</div>
-            <div class="hist-ex-sub">STEALTH LUNG PROTOCOL</div>
-          </div>
-        </div>
-      </div>`;
-    });
-  }
-
+  html += `<button class="clear-btn" onclick="clearHistory()">CLEAR ALL HISTORY</button>`;
   cont.innerHTML = html;
 }
 
@@ -2304,23 +2366,26 @@ async function pullCloudData() {
 
 initAuth();
 
-// ---- Hook existing save functions to also sync to cloud ----
-const _commitSession = commitSession;
-commitSession = function() {
-  const before = getHistory().length;
-  _commitSession();
-  const hist = getHistory();
-  if (hist.length > before) {
-    const entry = hist[0];
-    syncPush('/api/history', { id: entry.id, date: entry.date, num: entry.num, focus: entry.focus, exs: entry.exs });
-  }
-};
+// ---- Hook save functions to also sync to cloud ----
 
+// Wrap saveWellness to push wellness data to cloud after every save
 const _saveWellness = saveWellness;
 saveWellness = function() {
   _saveWellness();
   const d = lsJSON(wellnessKey());
   syncPush('/api/wellness', { date: new Date().toISOString().slice(0,10), data: d });
+};
+
+// Wrap saveEverything to also push workout history to cloud if a session was saved
+const _saveEverything = saveEverything;
+saveEverything = function() {
+  const before = getHistory().length;
+  _saveEverything();
+  const hist = getHistory();
+  if (hist.length > before) {
+    const entry = hist[0];
+    syncPush('/api/history', { id: entry.id, date: entry.date, num: entry.num, focus: entry.focus, exs: entry.exs });
+  }
 };
 
 const _addToPool = addToPool;
