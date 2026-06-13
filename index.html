@@ -6,15 +6,15 @@
   <title>IRON PROTOCOL</title>
   <style>
     :root {
-      --bg:         #080808;
+      --bg:         #060606;
       --bg2:        #101010;
       --bg3:        #161616;
       --bg4:        #1c1c1c;
-      --border:     #242424;
-      --border2:    #2e2e2e;
-      --red:        #e63030;
+      --border:     #1c1c1c;
+      --border2:    #242424;
+      --red:        #ff2e2e;
       --red-dim:    #5c1010;
-      --red-glow:   rgba(230,48,48,0.15);
+      --red-glow:   rgba(255,46,46,0.18);
       --amber:      #f59e0b;
       --amber-dim:  #5c3a08;
       --blue:       #38bdf8;
@@ -33,21 +33,38 @@
     html { scroll-behavior: smooth; }
 
     body {
-      background: var(--bg);
+      background:
+        radial-gradient(ellipse at center, rgba(12,10,10,0) 0%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.6) 78%, rgba(0,0,0,0.96) 100%),
+        var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
       min-height: 100vh;
       overscroll-behavior: none;
     }
 
+    /* Coarse distressed concrete / sandblasted-iron mottling */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='concrete'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.018' numOctaves='5' seed='7' stitchTiles='stitch' result='n'/%3E%3CfeColorMatrix in='n' type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.6' intercept='-0.35'/%3E%3CfeFuncG type='linear' slope='1.6' intercept='-0.35'/%3E%3CfeFuncB type='linear' slope='1.6' intercept='-0.35'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23concrete)'/%3E%3C/svg%3E");
+      background-size: 600px 600px;
       pointer-events: none;
       z-index: 0;
-      opacity: 0.6;
+      opacity: 0.5;
+      mix-blend-mode: overlay;
+    }
+
+    /* Fine raw grain on top */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.18'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.85;
+      mix-blend-mode: overlay;
     }
 
     /* ── HEADER ─────────────────────────────────────────────── */
@@ -95,6 +112,18 @@
       justify-content: center;
       padding: 20px;
     }
+
+    .auth-gate {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .auth-gate.hidden { display: none; }
     .auth-modal {
       background: var(--bg2);
       border: 1px solid var(--border2);
@@ -312,7 +341,7 @@
     }
 
     .timer-display.running { color: var(--amber); }
-    .timer-display.danger  { color: var(--red) !important; animation: pulse 0.5s ease infinite alternate; }
+    .timer-display.danger  { color: var(--red) !important; text-shadow: 0 0 12px rgba(255,46,46,0.7); animation: pulse 0.5s ease infinite alternate; }
     .timer-display.done    { color: var(--green); }
 
     @keyframes pulse { from { opacity: 1; } to { opacity: 0.4; } }
@@ -759,6 +788,7 @@
       border-radius: 4px;
       font-weight: 900;
       text-transform: uppercase;
+      box-shadow: 0 0 14px rgba(255,46,46,0.55);
     }
 
     .clear-btn {
@@ -1252,6 +1282,19 @@
   </section>
 
 </main>
+
+<!-- ── LOGIN GATE (blocks app until signed in) ───────────────── -->
+<div id="auth-gate" class="auth-gate">
+  <div class="auth-modal">
+    <div class="auth-modal-title">▪ IRON PROTOCOL — SIGN IN</div>
+    <div id="auth-gate-body">
+      <p style="font-size:11px;color:var(--text2);margin-bottom:10px;">Enter your email to receive a magic sign-in link. Each family member uses their own email and gets their own private history.</p>
+      <input id="gate-email" type="email" placeholder="you@example.com" class="auth-input">
+      <button class="auth-btn" onclick="sendGateMagicLink()">SEND MAGIC LINK</button>
+      <div id="gate-status" style="font-size:10px;color:var(--text2);margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ── CLOUD SYNC MODAL ───────────────────────────────────── -->
 <div id="auth-modal" class="auth-modal-overlay">
@@ -1966,18 +2009,41 @@ async function initAuth() {
   const { data } = await sbClient.auth.getSession();
   currentSession = data.session;
   updateAcctBtn();
+  updateGate();
   if (currentSession) { await pullCloudData(); processSyncQueue(); }
 
   sbClient.auth.onAuthStateChange((event, session) => {
     currentSession = session;
     updateAcctBtn();
+    updateGate();
     if (session && event === 'SIGNED_IN') {
       pullCloudData().then(processSyncQueue);
       closeAuthModal();
       toast('SIGNED IN — SYNCING');
     }
-    if (event === 'SIGNED_OUT') toast('SIGNED OUT — LOCAL MODE');
+    if (event === 'SIGNED_OUT') {
+      toast('SIGNED OUT');
+    }
   });
+}
+
+function updateGate() {
+  const gate = document.getElementById('auth-gate');
+  if (!gate) return;
+  gate.classList.toggle('hidden', !!currentSession);
+}
+
+async function sendGateMagicLink() {
+  const email  = v('gate-email').trim();
+  const status = document.getElementById('gate-status');
+  if (!email) { status.textContent = 'Enter your email.'; return; }
+  status.textContent = 'Sending…';
+  const { error } = await sbClient.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  status.textContent = error ? ('Error: ' + error.message)
+    : 'Check your email for the login link (and spam folder).';
 }
 
 function updateAcctBtn() {
