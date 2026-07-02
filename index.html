@@ -1076,6 +1076,112 @@
 
     .pool-add-btn:hover { background: var(--green); color: #000; }
 
+    .pool-lib-btn {
+      background: var(--blue-dim);
+      border: 1px solid var(--blue);
+      border-radius: 8px;
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      padding: 9px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .pool-lib-btn:hover { background: var(--blue); color: #000; }
+
+    .info-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--blue);
+      font-size: 12px;
+      width: 26px;
+      height: 26px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+      line-height: 1;
+    }
+    .info-btn:hover { border-color: var(--blue); background: var(--blue-dim); }
+
+    /* ── EXERCISE LIBRARY MODALS ─────────────────────────────── */
+    .auth-modal.exlib-modal-box {
+      max-width: 480px;
+      max-height: 86vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .exlib-filters { display: flex; gap: 8px; margin-bottom: 8px; }
+    .exlib-filters select { flex: 1; }
+    .exlib-status { font-size: 10px; color: var(--text2); margin-bottom: 8px; }
+    .exlib-list {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .exlib-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+      text-align: left;
+    }
+    .exlib-item:hover { border-color: var(--blue); }
+    .exlib-thumb {
+      width: 44px;
+      height: 44px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: var(--bg4);
+      flex-shrink: 0;
+    }
+    .exlib-item-info { flex: 1; min-width: 0; }
+    .exlib-item-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .exlib-item-meta {
+      font-size: 10px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+
+    .auth-modal.exdetail-modal-box { max-width: 440px; max-height: 88vh; overflow-y: auto; }
+    .exdetail-imgs { display: flex; gap: 8px; margin-bottom: 12px; }
+    .exdetail-imgs img { width: 50%; border-radius: 8px; background: var(--bg3); }
+    .exdetail-meta-row {
+      font-size: 10px;
+      color: var(--text2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      line-height: 1.6;
+    }
+    .exdetail-meta-row b { color: var(--text); }
+    .exdetail-steps { font-size: 12px; line-height: 1.6; color: var(--text); padding-left: 18px; margin: 0; }
+    .exdetail-steps li { margin-bottom: 8px; }
+
     .edit-reset-btn {
       width: 100%;
       padding: 13px;
@@ -1411,6 +1517,32 @@
   </div>
 </div>
 
+<!-- ── EXERCISE LIBRARY: SEARCH/BROWSE ────────────────────── -->
+<div id="exlib-modal" class="auth-modal-overlay">
+  <div class="auth-modal exlib-modal-box">
+    <div class="auth-modal-title">EXERCISE LIBRARY</div>
+    <input id="exlib-search" type="text" placeholder="Search exercises…" class="auth-input" oninput="exlibRender()">
+    <div class="exlib-filters">
+      <select id="exlib-muscle" class="auth-input" onchange="exlibRender()"><option value="">All muscles</option></select>
+      <select id="exlib-equip" class="auth-input" onchange="exlibRender()"><option value="">All equipment</option></select>
+    </div>
+    <div class="exlib-status" id="exlib-status"></div>
+    <div class="exlib-list" id="exlib-list"></div>
+    <button class="auth-close" onclick="closeExLib()">CLOSE</button>
+  </div>
+</div>
+
+<!-- ── EXERCISE LIBRARY: DETAIL VIEW ──────────────────────── -->
+<div id="exdetail-modal" class="auth-modal-overlay">
+  <div class="auth-modal exdetail-modal-box">
+    <div class="auth-modal-title" id="exdetail-title">EXERCISE</div>
+    <div class="exdetail-imgs" id="exdetail-imgs"></div>
+    <div class="exdetail-meta-row" id="exdetail-meta"></div>
+    <ol class="exdetail-steps" id="exdetail-steps"></ol>
+    <button class="auth-close" onclick="closeExDetail()">CLOSE</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- ─────────────────────────────────────────────────────────── -->
@@ -1573,6 +1705,9 @@ function renderExercises(dayIdx) {
       ${dropdownHTML}
       <div class="exercise-header">
         <div class="exercise-name" id="exname-${ex.id}">${escHtml(chosen)}</div>
+        <button class="info-btn" id="exinfo-${ex.id}" data-name="${escHtml(chosen)}"
+                onclick="openExDetailByName(this.getAttribute('data-name'))" title="Exercise details"
+                style="${getExMeta()[chosen] ? '' : 'display:none;'}">ⓘ</button>
         <div class="timer-widget">
           <div class="timer-display" id="td-${ex.id}">3:00</div>
           <button class="timer-btn start-btn" onclick="startTimer('${ex.id}')">START</button>
@@ -1655,6 +1790,11 @@ function onExSelect(dayId, exId, chosenName, dayIdx) {
   ls('ip_sel_' + dayIdx, JSON.stringify(sel));
   const label = document.getElementById('exname-' + exId);
   if (label) label.textContent = chosenName;
+  const info = document.getElementById('exinfo-' + exId);
+  if (info) {
+    info.setAttribute('data-name', chosenName);
+    info.style.display = getExMeta()[chosenName] ? '' : 'none';
+  }
 }
 
 function toggleFailure(exId) {
@@ -2081,9 +2221,13 @@ function buildEditor() {
         </div>`;
 
       // User-added alternatives
+      const exmeta = getExMeta();
       alts.forEach(alt => {
+        const meta = exmeta[alt];
         html += `<div class="pool-item">
           <span class="pool-item-name">${escHtml(alt)}</span>
+          ${meta ? `<button class="info-btn" data-name="${escHtml(alt)}"
+                  onclick="openExDetailByName(this.getAttribute('data-name'))" title="Details">ⓘ</button>` : ''}
           <button class="pool-remove-btn"
                   onclick="removeFromPool('${escHtml(day.id)}','${escHtml(ex.id)}','${escHtml(alt)}')"
                   title="Remove">×</button>
@@ -2099,6 +2243,8 @@ function buildEditor() {
                  onkeydown="if(event.key==='Enter') addToPool('${day.id}','${ex.id}')">
           <button class="pool-add-btn"
                   onclick="addToPool('${day.id}','${ex.id}')">+ ADD</button>
+          <button class="pool-lib-btn"
+                  onclick="openExLib('${day.id}','${ex.id}')">⌕ LIBRARY</button>
         </div>
       </div>`;
     });
@@ -2166,6 +2312,192 @@ function resetPools() {
   buildEditor();
   renderExercises(currentDay);
   toast('ALTERNATIVES CLEARED');
+}
+
+// ================================================================
+//  EXERCISE LIBRARY  (yuhonas/free-exercise-db, public domain)
+// ================================================================
+//  Loaded lazily on first use, then cached in localStorage so every
+//  later open of the picker is instant and works offline.
+
+const EXDB_URL      = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/dist/exercises.json';
+const EXDB_IMG_BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/';
+
+let exerciseDB      = null;   // in-memory cache once loaded
+let exlibDayId      = null;   // which day/slot the picker is currently targeting
+let exlibExId       = null;
+let exlibFiltersBuilt = false;
+
+// Metadata for any exercise added via the library, keyed by the exact
+// name string stored in the pool — lets us show an info/detail view
+// even though the pool itself only stores plain name strings.
+function getExMeta()  { return lsJSON('ip_exmeta') || {}; }
+function setExMeta(m) { ls('ip_exmeta', JSON.stringify(m)); }
+
+async function loadExerciseDB() {
+  if (exerciseDB) return exerciseDB;
+
+  const cached = lsJSON('ip_exdb_v1');
+  if (cached && Array.isArray(cached) && cached.length) {
+    exerciseDB = cached;
+    return cached;
+  }
+
+  const res = await fetch(EXDB_URL);
+  if (!res.ok) throw new Error('Library fetch failed: ' + res.status);
+  const raw = await res.json();
+
+  const trimmed = raw.map(e => ({
+    id:  e.id,
+    n:   e.name,
+    eq:  e.equipment || '',
+    pm:  e.primaryMuscles   || [],
+    sm:  e.secondaryMuscles || [],
+    cat: e.category || '',
+    ins: e.instructions || [],
+  }));
+
+  try { ls('ip_exdb_v1', JSON.stringify(trimmed)); }
+  catch (err) { /* storage full — app still works, just re-fetches next time */ }
+
+  exerciseDB = trimmed;
+  return trimmed;
+}
+
+function openExLib(dayId, exId) {
+  exlibDayId = dayId;
+  exlibExId  = exId;
+
+  document.getElementById('exlib-search').value = '';
+  document.getElementById('exlib-muscle').value  = '';
+  document.getElementById('exlib-equip').value   = '';
+  document.getElementById('exlib-list').innerHTML = '';
+  document.getElementById('exlib-status').textContent = 'Loading library…';
+  document.getElementById('exlib-modal').style.display = 'flex';
+
+  loadExerciseDB()
+    .then(db => { populateExlibFilters(db); exlibRender(); })
+    .catch(() => {
+      document.getElementById('exlib-status').textContent =
+        'Could not load the exercise library — check your connection and try again.';
+    });
+}
+
+function closeExLib() {
+  document.getElementById('exlib-modal').style.display = 'none';
+}
+
+function populateExlibFilters(db) {
+  if (exlibFiltersBuilt) return;
+  exlibFiltersBuilt = true;
+
+  const muscles = new Set(), equip = new Set();
+  db.forEach(e => {
+    e.pm.forEach(m => muscles.add(m));
+    if (e.eq) equip.add(e.eq);
+  });
+
+  const mSel = document.getElementById('exlib-muscle');
+  const eSel = document.getElementById('exlib-equip');
+  [...muscles].sort().forEach(m => {
+    const o = document.createElement('option');
+    o.value = m; o.textContent = m;
+    mSel.appendChild(o);
+  });
+  [...equip].sort().forEach(eq => {
+    const o = document.createElement('option');
+    o.value = eq; o.textContent = eq;
+    eSel.appendChild(o);
+  });
+}
+
+function exlibRender() {
+  if (!exerciseDB) return;
+
+  const q      = v('exlib-search').trim().toLowerCase();
+  const muscle = v('exlib-muscle');
+  const equip  = v('exlib-equip');
+
+  const matches = exerciseDB.filter(e => {
+    if (q && !e.n.toLowerCase().includes(q)) return false;
+    if (muscle && !e.pm.includes(muscle) && !e.sm.includes(muscle)) return false;
+    if (equip && e.eq !== equip) return false;
+    return true;
+  });
+
+  const total  = matches.length;
+  const capped = matches.slice(0, 60);
+
+  document.getElementById('exlib-status').textContent =
+    total === 0 ? 'No matches — try a different search or filter'
+    : total > 60 ? `Showing 60 of ${total} matches — refine your search`
+    : `${total} match${total === 1 ? '' : 'es'}`;
+
+  document.getElementById('exlib-list').innerHTML = capped.map(e => `
+    <div class="exlib-item" onclick="exlibPick('${e.id}')">
+      <img class="exlib-thumb" loading="lazy" src="${EXDB_IMG_BASE}${e.id}/0.jpg" onerror="this.style.visibility='hidden'">
+      <div class="exlib-item-info">
+        <div class="exlib-item-name">${escHtml(e.n)}</div>
+        <div class="exlib-item-meta">${escHtml(e.pm.join(', ') || e.cat)} · ${escHtml(e.eq || 'no equipment')}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function exlibPick(id) {
+  const ex = exerciseDB.find(e => e.id === id);
+  if (!ex || !exlibDayId || !exlibExId) return;
+
+  const defaultName = DEFAULT_NAMES[exlibDayId][exlibExId];
+  if (ex.n.toLowerCase() === defaultName.toLowerCase()) {
+    toast('ALREADY THE DEFAULT');
+    return;
+  }
+
+  const pools = getPools();
+  if (!pools[exlibDayId])            pools[exlibDayId]            = {};
+  if (!pools[exlibDayId][exlibExId]) pools[exlibDayId][exlibExId] = [];
+
+  if (!pools[exlibDayId][exlibExId].some(a => a.toLowerCase() === ex.n.toLowerCase())) {
+    pools[exlibDayId][exlibExId].push(ex.n);
+    setPools(pools);
+    syncPush('/api/pools', { data: pools }); // keep cloud sync in step with manual "+ ADD"
+  }
+
+  const meta = getExMeta();
+  meta[ex.n] = ex;
+  setExMeta(meta);
+
+  closeExLib();
+  buildEditor();
+  renderExercises(currentDay);
+  toast('ADDED FROM LIBRARY');
+}
+
+function openExDetailByName(name) {
+  const ex = getExMeta()[name];
+  if (!ex) return;
+
+  document.getElementById('exdetail-title').textContent = name;
+
+  document.getElementById('exdetail-imgs').innerHTML = [0, 1].map(i =>
+    `<img src="${EXDB_IMG_BASE}${ex.id}/${i}.jpg" onerror="this.style.display='none'">`
+  ).join('');
+
+  document.getElementById('exdetail-meta').innerHTML =
+    `<b>Target:</b> ${escHtml(ex.pm.join(', ') || '—')}` +
+    (ex.sm && ex.sm.length ? ` &nbsp;·&nbsp; <b>Also:</b> ${escHtml(ex.sm.join(', '))}` : '') +
+    ` &nbsp;·&nbsp; <b>Equipment:</b> ${escHtml(ex.eq || 'none')}`;
+
+  const steps = (ex.ins && ex.ins.length) ? ex.ins : ['No instructions available for this exercise.'];
+  document.getElementById('exdetail-steps').innerHTML =
+    steps.map(s => `<li>${escHtml(s)}</li>`).join('');
+
+  document.getElementById('exdetail-modal').style.display = 'flex';
+}
+
+function closeExDetail() {
+  document.getElementById('exdetail-modal').style.display = 'none';
 }
 
 // Keep applyCustomNames as a no-op stub — pools replaced the old system
